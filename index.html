@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lyric ASCII Portrait – live overlay</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  /* ---- original slideshow shell ---- */
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#000;color:#fff;font-family:monospace;overflow:hidden}
+  .slider{position:relative;width:100%;height:100%}
+  .slide{position:absolute;inset:0;opacity:0;transition:opacity 1.5s ease}
+  .slide.active{opacity:1}
+  .slide img{width:100%;height:100%;object-fit:cover;display:block}
+
+  /* ---- ASCII canvas overlay ---- */
+  #ascii{
+    position:absolute;inset:0;width:100%;height:100%;
+    pointer-events:none;   /* clicks pass through to arrows */
+    z-index:10;
+  }
+</style>
+</head>
+<body>
+
+<!-- original markup -->
+<div class="slider" id="slider"></div>
+<canvas id="ascii"></canvas>
+
+<script>
+/* ---------- CONFIG ---------- */
+const LYRICS = `I've run for many miles trying to find love
+From a woman that could love me and never leave my side
+And I've run for many miles trying to get away from
+The things I'm afraid of and everything inside
+You say that we're already done (done)
+But what does that even mean?
+You tell me to open my eyes
+Thank God it was just a dream
+I guess that's how you know that it's love
+When you're scared to death they'll leave
+Just say that you'll never leave, never leave`.replace(/\s+/g,' ').trim();
+
+const CHAR_W    = 100;   // characters wide
+const FONT_SIZE = 9;     // px
+const DARKNESS  = 1.3;   // >1 = darker
+/* ---------------------------- */
+
+const slider = document.getElementById('slider');
+const canvas = document.getElementById('ascii');
+const ctx    = canvas.getContext('2d');
+let lyricArr = LYRICS.split('');
+let lyricPtr = 0;
+let currentImg = null;
+
+/* ---- build slides (same names as before) ---- */
+const pics = ['73312.jpg','pic2.jpg','pic3.jpg']; // ← add your real names
+pics.forEach((src,i)=>{
+  const s = document.createElement('div');
+  s.className = 'slide' + (i===0?' active':'');
+  s.innerHTML = `<img src="${src}" alt="">`;
+  slider.appendChild(s);
+});
+
+/* ---- canvas resize ---- */
+function resize(){
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener('resize',resize);
+resize();
+
+/* ---- draw ASCII on current img ---- */
+function drawAscii(){
+  const active = document.querySelector('.slide.active img');
+  if(!active){ ctx.clearRect(0,0,canvas.width,canvas.height); return; }
+
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.src = active.src;
+  img.onload = ()=>{
+    currentImg = img;
+    render();
+  };
+  img.onerror = ()=>{ ctx.clearRect(0,0,canvas.width,canvas.height); };
+}
+
+function render(){
+  if(!currentImg) return;
+  const w = CHAR_W;
+  const h = Math.round((currentImg.height/currentImg.width) * w);
+  const off = document.createElement('canvas');
+  off.width = w; off.height = h;
+  const octx = off.getContext('2d');
+  octx.drawImage(currentImg,0,0,w,h);
+  const data = octx.getImageData(0,0,w,h).data;
+
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.font = `${FONT_SIZE}px monospace`;
+  ctx.textBaseline = 'top';
+
+  const cellW = canvas.width / w;
+  const cellH = canvas.height / h;
+
+  for(let y=0; y<h; y++){
+    for(let x=0; x<w; x++){
+      const i = (y*w+x)*4;
+      const g = (data[i]*0.299+data[i+1]*0.587+data[i+2]*0.114)/255;
+      const dens = Math.round((1-g)**DARKNESS * 9);
+      let seg = '';
+      for(let k=0; k<dens; k++) seg += lyricArr[lyricPtr++ % lyricArr.length];
+      ctx.fillStyle = `hsl(${(x+y)/w*h*1.2},70%,70%)`;
+      ctx.fillText(seg.padEnd(9,' '), x*cellW, y*cellH);
+    }
+  }
+}
+
+/* ---- auto-cycle slides (3 s) ---- */
+let idx = 0;
+setInterval(()=>{
+  const slides = document.querySelectorAll('.slide');
+  slides[idx].classList.remove('active');
+  idx = (idx+1)%slides.length;
+  slides[idx].classList.add('active');
+  drawAscii();
+},3000);
+
+/* ---- first draw ---- */
+drawAscii();
+</script>
+</body>
+</html>
+
